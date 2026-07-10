@@ -445,7 +445,15 @@
     camera.updateProjectionMatrix();
   }catch(err){ showErr('resize: '+(err&&err.message||err)); } }
   window.addEventListener('resize',resize);
-  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ resize(); }).observe(sceneEl); }catch(e){} }
+  var lastW=0, lastH=0, roPending=false;
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){
+    if(roPending) return; roPending=true;
+    requestAnimationFrame(function(){ roPending=false;
+      var w=sceneEl.clientWidth, h=sceneEl.clientHeight;
+      if(w===lastW && h===lastH) return;
+      lastW=w; lastH=h; resize();
+    });
+  }).observe(sceneEl); }catch(e){} }
 
   // lights
   var hemi=new THREE.HemisphereLight(0xffe9c8,0x223a30,0.85); scene.add(hemi);
