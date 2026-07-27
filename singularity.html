@@ -534,7 +534,7 @@ function draw(dt){
   }
 
   // player craft
-  if(state !== S.OVER){
+  if(state === S.PLAY && player){
     const px = CX+Math.cos(player.ang)*R, py = CY+Math.sin(player.ang)*R;
     if(player.shield){
       glow('#38f9e4', 18);

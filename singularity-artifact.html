@@ -387,7 +387,7 @@ function draw(dt){
     ctx.fillStyle='#ff6cc0'; ctx.beginPath(); ctx.arc(x,y,4.5,0,TAU); ctx.fill();
     noGlow();
   }
-  if(state!==S.OVER){
+  if(state===S.PLAY && player){
     const px=CX+Math.cos(player.ang)*R, py=CY+Math.sin(player.ang)*R;
     if(player.shield){
       glow('#38f9e4',18);
