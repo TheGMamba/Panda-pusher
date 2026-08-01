@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Bamboo Grove — A Panda Adventure</title>
+<meta name="description" content="A choose-your-path text adventure. Play as Pip the panda on a quest to find the Golden Bamboo and save the grove from the Long Winter." />
+<meta name="theme-color" content="#0e2419" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BC%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    --bg0:#0a1a12; --bg1:#102a1d; --panel:#14241a; --edge:#1f3a2a; --edge2:#2c4a36;
+    --jade:#3fae6e; --jade-br:#62d68f; --gold:#f5c14e; --gold-deep:#c8902a;
+    --bamboo:#b8d98a; --cream:#f3efe2; --muted:#9fc3a8; --danger:#e06a5a;
+    --shadow:rgba(0,0,0,.45);
+    font-family:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    background:radial-gradient(120% 80% at 50% -10%, #1a3a28 0%, var(--bg1) 45%, var(--bg0) 100%);
+    color:var(--cream); min-height:100vh; padding:16px; line-height:1.5;
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+  .wrap{width:100%; max-width:720px;}
+  header{
+    background:linear-gradient(180deg,var(--edge2),var(--panel));
+    border:2px solid var(--edge2); border-radius:16px; padding:16px 18px; margin-bottom:14px;
+    box-shadow:0 10px 26px var(--shadow), inset 0 1px 0 rgba(255,255,255,.05); position:relative; overflow:hidden;
+  }
+  header::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,transparent 0 36px,rgba(127,174,84,.05) 36px 38px);}
+  h1{margin:0; font-size:clamp(22px,5.5vw,30px); letter-spacing:.4px; font-weight:800;
+    text-shadow:0 2px 0 #08120c, 0 0 18px rgba(98,214,143,.25); display:flex; align-items:center; gap:10px;}
+  h1 .paw{filter:drop-shadow(0 0 8px rgba(245,193,78,.4));}
+  .tag{margin:6px 0 0; font-size:12.5px; color:var(--muted); font-weight:700; letter-spacing:.3px;}
+  .hud{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .chip{flex:1; min-width:92px; background:#0e1d15; border:1px solid var(--edge); border-radius:11px; padding:7px 10px;}
+  .chip .k{font-size:9.5px; letter-spacing:1.1px; color:#7fae84; font-weight:800; text-transform:uppercase;}
+  .chip .v{font-weight:800; font-size:17px; line-height:1.15; color:var(--cream); margin-top:2px;}
+  .chip.hp .v{color:var(--jade-br);} .chip.gold .v{color:var(--gold);}
+  .hearts{letter-spacing:1px;}
+
+  .scene{
+    background:var(--panel); border:2px solid var(--edge); border-radius:16px; padding:18px 18px 20px;
+    box-shadow:0 10px 26px var(--shadow);
+  }
+  .loc{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .loc .ico{font-size:30px; line-height:1;}
+  .loc h2{margin:0; font-size:19px; font-weight:800; color:var(--bamboo);}
+
+  #log{max-height:none;}
+  .entry{margin:0 0 12px; animation:fade .35s ease;}
+  .entry p{margin:0 0 8px;}
+  .entry.you{color:var(--jade-br); font-weight:700;}
+  .entry.you::before{content:"› "; color:var(--gold);}
+  .entry.sys{color:var(--gold); font-weight:700; font-style:italic;}
+  .entry.bad{color:var(--danger); font-weight:700;}
+  .entry.item{color:var(--bamboo); font-weight:700;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  .choices{display:flex; flex-direction:column; gap:9px; margin-top:16px;}
+  button.choice{
+    text-align:left; width:100%; cursor:pointer; font:inherit; font-weight:700; font-size:15px;
+    color:var(--cream); background:linear-gradient(180deg,#1b3626,#15291d);
+    border:1.5px solid var(--edge2); border-radius:12px; padding:12px 14px;
+    transition:transform .08s ease, border-color .15s ease, background .15s ease;
+    display:flex; align-items:center; gap:10px;
+  }
+  button.choice:hover{border-color:var(--jade); background:linear-gradient(180deg,#204029,#182f20);}
+  button.choice:active{transform:scale(.985);}
+  button.choice .arw{color:var(--gold); font-weight:900;}
+  button.choice.go{border-color:var(--jade);}
+  button.choice.danger:hover{border-color:var(--danger);}
+
+  .bar{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .bar button{cursor:pointer; font:inherit; font-weight:800; font-size:12.5px; letter-spacing:.3px;
+    color:var(--muted); background:#0e1d15; border:1px solid var(--edge); border-radius:10px; padding:8px 12px;
+    transition:color .15s, border-color .15s;}
+  .bar button:hover{color:var(--cream); border-color:var(--jade);}
+
+  .inv{margin-top:12px; background:#0e1d15; border:1px solid var(--edge); border-radius:12px; padding:12px 14px;}
+  .inv h3{margin:0 0 8px; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:#7fae84;}
+  .inv .items{display:flex; flex-wrap:wrap; gap:7px;}
+  .pill{background:#15291d; border:1px solid var(--edge2); border-radius:20px; padding:5px 11px; font-size:13px; font-weight:700;}
+  .pill.empty{color:var(--muted); font-style:italic; border-style:dashed;}
+
+  .end{text-align:center; padding:10px 0;}
+  .end .big{font-size:44px;}
+  .end h2{font-size:22px; margin:8px 0 4px;}
+  .end p{color:var(--muted); max-width:44ch; margin:6px auto;}
+
+  footer{margin-top:14px; text-align:center; color:#5f8a6c; font-size:11.5px;}
+  a{color:var(--jade-br);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="paw">🐼</span> The Bamboo Grove</h1>
+    <p class="tag">A choose-your-path adventure • Find the Golden Bamboo before the Long Winter falls</p>
+    <div class="hud">
+      <div class="chip hp"><div class="k">Vitality</div><div class="v hearts" id="hp">❤️❤️❤️</div></div>
+      <div class="chip"><div class="k">Location</div><div class="v" id="place">—</div></div>
+      <div class="chip gold"><div class="k">Bamboo Coins</div><div class="v" id="coins">0</div></div>
+    </div>
+  </header>
+
+  <div class="scene">
+    <div class="loc"><span class="ico" id="ico">🐼</span><h2 id="title">Loading…</h2></div>
+    <div id="log"></div>
+    <div class="choices" id="choices"></div>
+
+    <div class="inv">
+      <h3>Satchel</h3>
+      <div class="items" id="items"><span class="pill empty">empty</span></div>
+    </div>
+
+    <div class="bar">
+      <button id="restart">↺ Restart</button>
+      <button id="mute">🔊 Sound: on</button>
+    </div>
+  </div>
+
+  <footer>Made with 🐼 in the Panda Grove • runs entirely in your browser</footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   THE BAMBOO GROVE — a small text adventure engine + story.
+   Pure vanilla JS, single file, no dependencies.
+   ============================================================ */
+
+// ---------- tiny audio (WebAudio blips, no assets) ----------
+const Audio2 = (() => {
+  let ctx = null, on = true;
+  const ac = () => (ctx || (ctx = new (window.AudioContext || window.webkitAudioContext)()));
+  function blip(freq, dur, type = "sine", vol = 0.05) {
+    if (!on) return;
+    try {
+      const c = ac(), o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.value = freq;
+      o.connect(g); g.connect(c.destination);
+      g.gain.setValueAtTime(vol, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+      o.start(); o.stop(c.currentTime + dur);
+    } catch (e) {}
+  }
+  return {
+    pick:  () => blip(880, 0.12, "triangle"),
+    move:  () => blip(420, 0.08, "sine"),
+    good:  () => { blip(660, 0.1, "triangle"); setTimeout(() => blip(990, 0.16, "triangle"), 90); },
+    bad:   () => blip(160, 0.22, "sawtooth", 0.06),
+    win:   () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, "triangle"), i * 130)),
+    toggle:(v) => { on = v; }
+  };
+})();
+
+// ---------- game state ----------
+const START = { hp: 3, maxHp: 3, coins: 0, at: "grove", inv: [], flags: {} };
+let S = structuredClone(START);
+
+const has = (id) => S.inv.includes(id);
+const give = (id) => { if (!has(id)) { S.inv.push(id); return true; } return false; };
+const take = (id) => { S.inv = S.inv.filter(x => x !== id); };
+const flag = (k, v = true) => { S.flags[k] = v; };
+const isSet = (k) => !!S.flags[k];
+
+// ---------- item labels for satchel ----------
+const ITEMS = {
+  torch:   "🔥 Bamboo Torch",
+  key:     "🗝️ Rusted Key",
+  fish:    "🐟 Silver Fish",
+  rope:    "🪢 Vine Rope",
+  lantern: "🏮 Firefly Lantern",
+  flute:   "🎋 Reed Flute",
+  seed:    "🌱 Golden Seed",
+  map:     "🗺️ Torn Map",
+  charm:   "🧿 Jade Charm",
+};
+
+// ============================================================
+//   THE WORLD — each location is a function returning:
+//   { ico, title, text:[...], choices:[{label, to, do, if, cls}] }
+//   'text' is re-evaluated on entry. 'choices' filtered by if().
+// ============================================================
+const WORLD = {
+
+  grove: () => ({
+    ico: "🎋", title: "Heart of the Bamboo Grove",
+    text: [
+      "You are <b>Pip</b>, youngest of the grove pandas. The elders sleep, thin and shivering — the <i>Long Winter</i> has come early, and the last of the grove's warmth is fading.",
+      "Old Nana Bao presses a <b>torn map</b> into your paws. \"Only the <b>Golden Bamboo</b> can wake the grove,\" she whispers. \"It grows where the mountain touches the moon. Go, little one.\"",
+      "Three paths leave the clearing: the <b>misty forest</b> to the north, the <b>river crossing</b> east, and a <b>dark cave mouth</b> in the western cliff."
+    ],
+    onEnter: () => { if (give("map")) log("You take the Torn Map.", "item"); },
+    choices: [
+      { label: "Head north into the misty forest", arw: "🌲", to: "forest" },
+      { label: "Follow the river east", arw: "🏞️", to: "river" },
+      { label: "Approach the dark cave", arw: "🕳️", to: "cavemouth" },
+    ]
+  }),
+
+  forest: () => ({
+    ico: "🌲", title: "The Misty Forest",
+    text: [
+      "Silver mist curls between ancient trunks. Somewhere a <b>firefly</b> pulses, cold and blue.",
+      isSet("gotLantern")
+        ? "The mossy hollow where the fireflies gathered is empty now."
+        : "A cluster of fireflies swarms an empty gourd hanging from a branch — if you had something to catch them in, you could make a <b>lantern</b>."
+    ],
+    choices: [
+      { label: "Catch the fireflies in the gourd", arw: "🏮", if: () => !isSet("gotLantern"),
+        do: () => { give("lantern"); flag("gotLantern"); log("You cup the fireflies into the gourd. A Firefly Lantern glows to life!", "item"); Audio2.pick(); } },
+      { label: "Play a tune on the reed flute", arw: "🎵", if: () => has("flute") && !isSet("metDeer"),
+        do: () => { flag("metDeer"); S.coins += 5;
+          log("A shy moon-deer steps from the mist, charmed by your song. It nuzzles you and drops 5 bamboo coins from its antlers before vanishing.", "sys"); Audio2.good(); } },
+      { label: "Search the mossy roots", arw: "🔎", if: () => !isSet("searchedRoots"),
+        do: () => { flag("searchedRoots");
+          if (Math.random() < 0.5) { give("rope"); log("Tangled in the roots you find a coil of Vine Rope.", "item"); Audio2.pick(); }
+          else { hurt(1, "A thornvine snaps and lashes your paw!"); } } },
+      { label: "Return to the grove", arw: "↩️", to: "grove", cls: "" },
+      { label: "Press deeper — toward the mountain", arw: "⛰️", to: "slope", if: () => isSet("gotLantern"),
+        cls: "go" },
+      { label: "The path ahead is pitch dark — you need light", arw: "🌑", if: () => !isSet("gotLantern"),
+        do: () => log("Without a light you'd lose the trail in the mist. Better find one first.", "sys") },
+    ]
+  }),
+
+  river: () => ({
+    ico: "🏞️", title: "The River Crossing",
+    text: [
+      "A wide, cold river blocks the way. Stepping stones vanish under white rapids. On a flat rock, a grey <b>heron</b> preens.",
+      has("fish")
+        ? "The heron eyes the silver fish in your satchel hungrily."
+        : "Silver fish flicker in the shallows — quick, but catchable."
+    ],
+    choices: [
+      { label: "Snatch a silver fish from the shallows", arw: "🐟", if: () => !has("fish") && !isSet("gaveFish"),
+        do: () => { if (Math.random() < 0.7) { give("fish"); log("You pounce and catch a wriggling Silver Fish!", "item"); Audio2.pick(); }
+                    else { log("Splash! The fish darts away. Try again.", "sys"); } } },
+      { label: "Offer the fish to the heron", arw: "🕊️", if: () => has("fish") && !isSet("gaveFish"),
+        do: () => { take("fish"); flag("gaveFish"); give("charm");
+          log("The heron gulps the fish, then bows. \"A gift for a gift,\" it rasps, dropping a Jade Charm at your feet.", "sys"); Audio2.good(); } },
+      { label: "Cross using the vine rope as a handline", arw: "🪢", if: () => has("rope") && !isSet("crossedRiver"),
+        do: () => { flag("crossedRiver"); log("You lash the rope to a boulder and haul yourself across the rapids, soaked but safe.", "sys"); Audio2.good(); },
+        to: "eastbank" },
+      { label: "Try to leap the stones", arw: "💦", if: () => !isSet("crossedRiver"),
+        do: () => { if (has("rope")) { log("Why risk it? You have a rope for a safe crossing.", "sys"); return "stay"; }
+                    hurt(1, "You slip on a wet stone and tumble into the icy current, scrambling back to shore, shivering."); } },
+      { label: "Return to the grove", arw: "↩️", to: "grove" },
+    ]
+  }),
+
+  eastbank: () => ({
+    ico: "🌾", title: "The Far Bank",
+    text: [
+      "Across the river, a sunlit meadow of tall reeds sways. An old <b>reed-cutter's hut</b> leans by the water.",
+      isSet("gotFlute") ? "The hut stands quiet and empty." :
+        "Inside the hut, on a dusty shelf, rests a hand-carved <b>reed flute</b>."
+    ],
+    choices: [
+      { label: "Take the reed flute", arw: "🎋", if: () => !isSet("gotFlute"),
+        do: () => { give("flute"); flag("gotFlute"); log("You pocket the Reed Flute. Its notes might charm more than ears…", "item"); Audio2.pick(); } },
+      { label: "Cut a bundle of reeds for the grove", arw: "🌾", if: () => !isSet("cutReeds"),
+        do: () => { flag("cutReeds"); S.coins += 3; log("You cut and bundle dry reeds — good tinder. (+3 coins of trade)", "item"); Audio2.pick(); } },
+      { label: "Cross back over the rope", arw: "↩️", to: "river" },
+    ]
+  }),
+
+  cavemouth: () => ({
+    ico: "🕳️", title: "The Cave Mouth",
+    text: [
+      "Cold air breathes from the dark. Bones of some old beast litter the entrance. Deeper in, you'd need a <b>light</b> to see at all.",
+      isSet("litTorch") ? "Your bamboo torch crackles, throwing dancing shadows." :
+        "A resin-soaked <b>bamboo stalk</b> lies by the wall — it would make a fine torch, if lit."
+    ],
+    choices: [
+      { label: "Make a bamboo torch", arw: "🔥", if: () => !has("torch"),
+        do: () => { give("torch"); log("You bind resin-rich bamboo into a Torch. Now you need a flame…", "item"); Audio2.pick(); } },
+      { label: "Light the torch from the firefly lantern's spark", arw: "✨", if: () => has("torch") && has("lantern") && !isSet("litTorch"),
+        do: () => { flag("litTorch"); log("You coax a spark from the lantern's glow. The torch flares bright!", "sys"); Audio2.good(); } },
+      { label: "Enter the cave with your torch", arw: "🔦", if: () => isSet("litTorch"), to: "cavern", cls: "go" },
+      { label: "Peer into the dark without light", arw: "🌑", if: () => !isSet("litTorch"),
+        do: () => { hurt(1, "Something in the dark swipes at you! You stumble back, bleeding. Not without light."); } },
+      { label: "Return to the grove", arw: "↩️", to: "grove" },
+    ]
+  }),
+
+  cavern: () => ({
+    ico: "💎", title: "The Glittering Cavern",
+    text: [
+      "Torchlight wakes a thousand crystals. In the center, a stone pedestal holds a <b>rusted key</b> beside a locked iron chest.",
+      isSet("openedChest") ? "The opened chest gleams, emptied of its hoard." :
+        "The chest is bound with a heavy lock."
+    ],
+    choices: [
+      { label: "Take the rusted key", arw: "🗝️", if: () => !has("key") && !isSet("openedChest"),
+        do: () => { give("key"); log("You take the Rusted Key.", "item"); Audio2.pick(); } },
+      { label: "Open the chest with the key", arw: "🔓", if: () => has("key") && !isSet("openedChest"),
+        do: () => { flag("openedChest"); take("key"); S.coins += 12; give("seed");
+          log("The lock groans open! Inside: a pile of bamboo coins (+12) and a single glowing GOLDEN SEED.", "sys"); Audio2.win(); } },
+      { label: "Mine a loose crystal (careful…)", arw: "⛏️", if: () => !isSet("minedCrystal"),
+        do: () => { flag("minedCrystal");
+          if (Math.random() < 0.6) { S.coins += 6; log("A crystal cracks free — worth 6 coins!", "item"); Audio2.pick(); }
+          else { hurt(1, "The ceiling shudders and a shard rains down on you!"); } } },
+      { label: "Leave the cavern", arw: "↩️", to: "cavemouth" },
+    ]
+  }),
+
+  slope: () => ({
+    ico: "⛰️", title: "The Mountain Slope",
+    text: [
+      "Above the mist, the mountain rises into moonlit snow. The air is thin and biting. A rope bridge — half its planks missing — spans a deep ravine to the summit.",
+      "A weathered stone marker reads: <i>\"Only the moon-blessed may cross. Play the mountain its song.\"</i>"
+    ],
+    choices: [
+      { label: "Play the reed flute at the ravine's edge", arw: "🎶", if: () => has("flute") && !isSet("bridgeMended"),
+        do: () => { flag("bridgeMended");
+          log("Your song drifts over the ravine. Moonlight thickens into silver planks, mending the bridge!", "sys"); Audio2.good(); } },
+      { label: "Steady the crossing with the vine rope", arw: "🪢", if: () => isSet("bridgeMended") && has("rope") && !isSet("ropedBridge"),
+        do: () => { flag("ropedBridge"); log("You string the vine rope as a handrail. Now the crossing is safe.", "sys"); } },
+      { label: "Cross the bridge to the summit", arw: "🌙", if: () => isSet("bridgeMended"), to: "summit", cls: "go",
+        do: () => { if (!isSet("ropedBridge")) { if (Math.random() < 0.5) { hurt(1, "A silver plank flickers underfoot and you nearly fall — you claw back to this side!"); return "stay"; } } } },
+      { label: "Warm yourself and rest", arw: "🔥", if: () => has("torch") && S.hp < S.maxHp && !isSet("restedSlope"),
+        do: () => { flag("restedSlope"); heal(1, "You huddle by the torch's warmth and recover some strength."); } },
+      { label: "Back down to the forest", arw: "↩️", to: "forest" },
+    ]
+  }),
+
+  summit: () => ({
+    ico: "🌕", title: "The Moonlit Summit",
+    text: [
+      "You stand at the roof of the world. And there — rooted in a crack of silver stone, glowing softly — grows the <b>Golden Bamboo</b>.",
+      "But its single stalk is withered and grey. It will not simply be taken; it must be <i>reawakened</i>.",
+      isSet("openedChest") || has("seed")
+        ? "The Golden Seed in your satchel pulses in answer to the bamboo's glow."
+        : "You sense it needs something — a seed of its own kind, perhaps, to reignite its life."
+    ],
+    choices: [
+      { label: "Plant the Golden Seed at its roots", arw: "🌱", if: () => has("seed"),
+        do: () => { take("seed"); flag("bambooWoken"); },
+        to: "ending_win" },
+      { label: "Try to cut the withered stalk anyway", arw: "🔪", if: () => !isSet("bambooWoken"),
+        cls: "danger",
+        do: () => { hurt(1, "The grey stalk crumbles to ash in your paws. Cutting it is death — it must be reborn, not harvested."); } },
+      { label: "Offer the jade charm to the bamboo", arw: "🧿", if: () => has("charm") && !isSet("charmOffered"),
+        do: () => { flag("charmOffered"); take("charm"); heal(1, "The Jade Charm dissolves into warmth. You feel restored, and the bamboo hums approvingly."); Audio2.good(); } },
+      { label: "Back across the bridge", arw: "↩️", to: "slope" },
+    ]
+  }),
+
+  // ---------- endings ----------
+  ending_win: () => ({
+    ico: "🌟", title: "The Grove Awakens", ending: "win",
+    text: [
+      "You press the Golden Seed into the silver stone. Light races up the withered stalk — grey to gold, gold to blazing green.",
+      "The Golden Bamboo unfurls a hundred new shoots, and warmth pours down the mountain like a tide. Far below, the frost melts from the grove. The elders stir, then rise, calling your name.",
+      "<b>Pip, smallest of the pandas, ended the Long Winter.</b> They will tell your story for a thousand springs."
+    ],
+  }),
+
+  ending_lose: () => ({
+    ico: "❄️", title: "The Long Winter", ending: "lose",
+    text: [
+      "Your strength gives out on the cold mountain. The last warmth leaves you, and the mist closes in.",
+      "The grove sleeps on beneath the frost… but stories say a small brave panda still wanders the peak, looking for the golden light.",
+      "Perhaps, with wiser steps, the tale ends otherwise."
+    ],
+  }),
+};
+
+// ============================================================
+//   ENGINE
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const logEl = $("log"), choicesEl = $("choices");
+let muted = false;
+
+function log(html, cls = "") {
+  const p = document.createElement("div");
+  p.className = "entry " + cls;
+  p.innerHTML = "<p>" + html + "</p>";
+  logEl.appendChild(p);
+  p.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function hurt(n, msg) {
+  S.hp = Math.max(0, S.hp - n);
+  Audio2.bad();
+  if (msg) log(msg, "bad");
+  renderHud();
+  if (S.hp <= 0) { goto("ending_lose"); return true; }
+  return false;
+}
+function heal(n, msg) {
+  S.hp = Math.min(S.maxHp, S.hp + n);
+  if (msg) log(msg, "sys");
+  renderHud();
+}
+
+function renderHud() {
+  $("hp").textContent = "❤️".repeat(S.hp) + "🖤".repeat(Math.max(0, S.maxHp - S.hp));
+  $("coins").textContent = S.coins;
+  const cur = WORLD[S.at] ? WORLD[S.at]() : null;
+  $("place").textContent = cur ? cur.title.replace(/^The /, "") : "—";
+}
+
+function renderInv() {
+  const box = $("items");
+  box.innerHTML = "";
+  if (S.inv.length === 0) { box.innerHTML = '<span class="pill empty">empty</span>'; return; }
+  S.inv.forEach(id => {
+    const s = document.createElement("span");
+    s.className = "pill";
+    s.textContent = ITEMS[id] || id;
+    box.appendChild(s);
+  });
+}
+
+function render() {
+  const node = WORLD[S.at]();
+  $("ico").textContent = node.ico;
+  $("title").textContent = node.title;
+
+  // fresh log per scene
+  logEl.innerHTML = "";
+  (node.text || []).forEach(t => log(t));
+
+  renderHud();
+  renderInv();
+  save();
+
+  // endings: no choices, offer restart
+  if (node.ending) {
+    choicesEl.innerHTML = "";
+    if (node.ending === "win") Audio2.win(); else Audio2.bad();
+    const wrap = document.createElement("div");
+    wrap.className = "end";
+    wrap.innerHTML = `<div class="big">${node.ending === "win" ? "🎉🐼🎉" : "🐾"}</div>`;
+    choicesEl.appendChild(wrap);
+    addChoiceButton({ label: "Play again", arw: "↺", cls: "go" }, () => { reset(); });
+    return;
+  }
+
+  // build choices
+  choicesEl.innerHTML = "";
+  (node.choices || []).forEach(ch => {
+    if (ch.if && !ch.if()) return;
+    addChoiceButton(ch, () => runChoice(node, ch));
+  });
+}
+
+function addChoiceButton(ch, handler) {
+  const b = document.createElement("button");
+  b.className = "choice " + (ch.cls || "") + (ch.cls === "danger" ? " danger" : "");
+  b.innerHTML = `<span class="arw">${ch.arw || "›"}</span><span>${ch.label}</span>`;
+  b.addEventListener("click", handler);
+  choicesEl.appendChild(b);
+}
+
+function runChoice(node, ch) {
+  // 'do' may return "stay" to cancel a pending move, or true if it triggered an ending (hp<=0)
+  let result;
+  if (ch.do) {
+    const before = S.at;
+    result = ch.do();
+    if (S.at === "ending_lose") return; // hurt() already navigated
+    if (before !== S.at) return;        // do() navigated somewhere
+  }
+  if (ch.to && result !== "stay") { goto(ch.to); return; }
+  // no move: re-render current scene to reflect state changes
+  renderInv();
+  renderHud();
+  save();
+  // append fresh choice list without wiping the log messages 'do' just added
+  refreshChoicesOnly();
+}
+
+function refreshChoicesOnly() {
+  const node = WORLD[S.at]();
+  if (node.ending) { render(); return; }
+  choicesEl.innerHTML = "";
+  (node.choices || []).forEach(ch => {
+    if (ch.if && !ch.if()) return;
+    addChoiceButton(ch, () => runChoice(node, ch));
+  });
+}
+
+function goto(where) {
+  S.at = where;
+  Audio2.move();
+  const node = WORLD[where];
+  render();
+  // onEnter hook (after render so items logged appear under the scene text)
+  if (node && node().onEnter) node().onEnter();
+}
+
+// ---------- persistence ----------
+const SAVE_KEY = "bamboo-grove-save-v1";
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (parsed && WORLD[parsed.at]) { S = parsed; return true; }
+  } catch (e) {}
+  return false;
+}
+function reset() {
+  S = structuredClone(START);
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  // grant the map via grove onEnter
+  render();
+  const g = WORLD.grove();
+  if (g.onEnter) g.onEnter();
+  refreshChoicesOnly();
+}
+
+// ---------- controls ----------
+$("restart").addEventListener("click", () => {
+  if (confirm("Restart your adventure from the beginning?")) reset();
+});
+$("mute").addEventListener("click", (e) => {
+  muted = !muted;
+  Audio2.toggle(!muted);
+  e.target.textContent = muted ? "🔇 Sound: off" : "🔊 Sound: on";
+});
+
+// ---------- boot ----------
+if (load()) {
+  render();
+} else {
+  render();
+  const g = WORLD.grove();
+  if (g.onEnter) g.onEnter();
+  refreshChoicesOnly();
+}
+</script>
+</body>
+</html>
