@@ -79,6 +79,12 @@
     font-size:12px;letter-spacing:2px;z-index:5;pointer-events:none;font-weight:700;text-transform:uppercase;
     font-family:var(--display);}
 
+  .mute-btn{position:absolute;top:64px;right:14px;z-index:6;width:30px;height:30px;border-radius:50%;
+    border:1.5px solid rgba(56,249,228,.4);background:rgba(18,7,38,.55);color:var(--cyan);
+    font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;
+    pointer-events:auto;backdrop-filter:blur(4px);font-family:var(--display);}
+  .mute-btn.off{color:var(--dim);border-color:rgba(138,127,181,.3);text-decoration:line-through;}
+
   /* ---- shop ---- */
   .shop-title{font-family:var(--display);font-weight:900;font-size:clamp(24px,7vw,38px);letter-spacing:3px;
     margin:0 0 6px;color:var(--cyan);text-shadow:0 0 20px rgba(56,249,228,.4);}
@@ -115,6 +121,7 @@
   </div>
   <div id="multi">×1</div>
   <div class="hint" id="hint"></div>
+  <button class="mute-btn" id="muteBtn" aria-label="Toggle music" title="Toggle music">♪</button>
 
   <div class="panel show" id="startPanel">
     <h1 class="logo">SINGULA<span class="dot">R</span>ITY</h1>
@@ -221,7 +228,11 @@ window.addEventListener('resize', makeStars);
 
 // ---- audio ----
 let AC=null;
-function audio(){ if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } return AC; }
+function audio(){
+  if(!AC){ try{AC=new (window.AudioContext||window.webkitAudioContext)(); startMusic();}catch(e){} }
+  else if(AC.state==='suspended'){ AC.resume(); }
+  return AC;
+}
 function beep(freq,dur,type,vol,slideTo){
   const ac=audio(); if(!ac) return;
   const o=ac.createOscillator(), g=ac.createGain();
@@ -240,6 +251,87 @@ const sStart=()=>beep(220,.25,'sine',.14,660);
 const sShieldGet=()=>{beep(520,.12,'sine',.16,880);beep(780,.16,'sine',.12,1200);};
 const sShieldBreak=()=>{beep(300,.25,'square',.18,120);beep(180,.3,'sine',.14,60);};
 const sBuy=()=>{beep(600,.1,'square',.14,900);beep(920,.14,'square',.10,1320);};
+
+// ---- background music (procedural, no audio files) ----
+const MUSIC_KEY='singularity_music_v1';
+let musicOn=true; try{ musicOn = localStorage.getItem(MUSIC_KEY)!=='0'; }catch(e){}
+const muteBtn=document.getElementById('muteBtn');
+function updMuteBtn(){ muteBtn.classList.toggle('off', !musicOn); }
+updMuteBtn();
+muteBtn.addEventListener('click',(e)=>{
+  e.stopPropagation(); audio();
+  musicOn=!musicOn;
+  try{localStorage.setItem(MUSIC_KEY, musicOn?'1':'0');}catch(err){}
+  updMuteBtn();
+  if(musicGain && AC){
+    musicGain.gain.cancelScheduledValues(AC.currentTime);
+    musicGain.gain.linearRampToValueAtTime(musicOn?0.36:0, AC.currentTime+0.15);
+  }
+});
+
+const BPM=96, STEP_DUR=60/BPM/4;
+const PROGRESSION=[ // i - VI - III - VII in A minor, bass one octave below arp
+  {bass:110.00, arp:[220.00,261.63,329.63,440.00]}, // Am
+  {bass:87.31,  arp:[174.61,220.00,261.63,349.23]}, // F
+  {bass:65.41,  arp:[130.81,164.81,196.00,261.63]}, // C
+  {bass:98.00,  arp:[196.00,246.94,293.66,392.00]}, // G
+];
+const ARP_PATTERN=[0,1,2,3,2,1,0,1,0,1,2,3,2,1,0,3];
+let musicGain=null, padFilter=null, stepIndex=0, nextStepTime=0, schedulerId=null;
+const LOOKAHEAD=0.12, SCHED_MS=60;
+function initMusicGraph(){
+  if(musicGain||!AC) return;
+  musicGain=AC.createGain(); musicGain.gain.value=musicOn?0.36:0;
+  musicGain.connect(AC.destination);
+  padFilter=AC.createBiquadFilter(); padFilter.type='lowpass'; padFilter.frequency.value=900; padFilter.Q.value=0.5;
+  padFilter.connect(musicGain);
+}
+function playBassNote(freq,t){
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='sine'; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.30,t+0.03);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+STEP_DUR*3.6);
+  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+STEP_DUR*4);
+}
+function playArpNote(freq,t){
+  const o=AC.createOscillator(), g=AC.createGain();
+  o.type='triangle'; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.14,t+0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+STEP_DUR*0.85);
+  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+STEP_DUR);
+}
+function playPad(chord,t){
+  const dur=STEP_DUR*16*0.95;
+  for(const f of [chord.bass*2, chord.arp[0], chord.arp[2]]){
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type='sawtooth'; o.frequency.value=f; o.detune.value=rand(-4,4);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(0.045,t+0.6);
+    g.gain.setValueAtTime(0.045,t+dur-0.6);
+    g.gain.linearRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(padFilter); o.start(t); o.stop(t+dur+0.05);
+  }
+}
+function scheduler(){
+  if(!AC||!musicGain) return;
+  while(nextStepTime < AC.currentTime+LOOKAHEAD){
+    const barStep=stepIndex%16;
+    const chord=PROGRESSION[Math.floor(stepIndex/16)%PROGRESSION.length];
+    if(barStep===0) playPad(chord,nextStepTime);
+    if(barStep===0||barStep===8) playBassNote(chord.bass,nextStepTime);
+    playArpNote(chord.arp[ARP_PATTERN[barStep]],nextStepTime);
+    nextStepTime+=STEP_DUR; stepIndex++;
+  }
+}
+function startMusic(){
+  if(schedulerId||!AC) return;
+  initMusicGraph();
+  stepIndex=0; nextStepTime=AC.currentTime+0.05;
+  scheduler();
+  schedulerId=setInterval(scheduler,SCHED_MS);
+}
 
 // ---- run control ----
 function applyItems(){
