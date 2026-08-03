@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DERELICT — A Space Station Adventure</title>
+<meta name="description" content="A choose-your-path survival text adventure. You wake alone on the dying station Aurora. Restore power, outwit the station AI, and reach the escape pod before you run out of air." />
+<meta name="theme-color" content="#05080f" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%B0%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+<style>
+  :root{
+    /* sci-fi steel / cyan / amber palette (same var names as the engine expects) */
+    --bg0:#05080f; --bg1:#0a1020; --panel:#111a2b; --edge:#1e2c44; --edge2:#2a3d5c;
+    --jade:#4dd0e1; --jade-br:#7fe7f2; --gold:#f5b74e; --gold-deep:#c8902a;
+    --bamboo:#a9c2e6; --cream:#e6edf5; --muted:#8fa3bd; --danger:#e0564a;
+    --shadow:rgba(0,0,0,.55);
+    font-family:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;}
+  body{
+    background:radial-gradient(120% 80% at 50% -10%, #142544 0%, var(--bg1) 45%, var(--bg0) 100%);
+    color:var(--cream); min-height:100vh; padding:16px; line-height:1.5;
+    display:flex; align-items:flex-start; justify-content:center;
+  }
+  .wrap{width:100%; max-width:720px;}
+  header{
+    background:linear-gradient(180deg,var(--edge2),var(--panel));
+    border:2px solid var(--edge2); border-radius:16px; padding:16px 18px; margin-bottom:14px;
+    box-shadow:0 10px 26px var(--shadow), inset 0 1px 0 rgba(255,255,255,.05); position:relative; overflow:hidden;
+  }
+  header::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,transparent 0 36px,rgba(77,208,225,.05) 36px 38px);}
+  h1{margin:0; font-size:clamp(22px,5.5vw,30px); letter-spacing:2px; font-weight:800;
+    text-shadow:0 2px 0 #05080f, 0 0 18px rgba(127,231,242,.3); display:flex; align-items:center; gap:10px;}
+  h1 .paw{filter:drop-shadow(0 0 8px rgba(245,183,78,.4));}
+  .tag{margin:6px 0 0; font-size:12.5px; color:var(--muted); font-weight:700; letter-spacing:.3px;}
+  .hud{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .chip{flex:1; min-width:92px; background:#0a1424; border:1px solid var(--edge); border-radius:11px; padding:7px 10px;}
+  .chip .k{font-size:9.5px; letter-spacing:1.1px; color:#6f88ad; font-weight:800; text-transform:uppercase;}
+  .chip .v{font-weight:800; font-size:17px; line-height:1.15; color:var(--cream); margin-top:2px;}
+  .chip.hp .v{color:var(--jade-br);} .chip.gold .v{color:var(--gold);}
+  .hearts{letter-spacing:1px;}
+
+  .scene{
+    background:var(--panel); border:2px solid var(--edge); border-radius:16px; padding:18px 18px 20px;
+    box-shadow:0 10px 26px var(--shadow);
+  }
+  .loc{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .loc .ico{font-size:30px; line-height:1;}
+  .loc h2{margin:0; font-size:19px; font-weight:800; color:var(--bamboo);}
+
+  #log{max-height:none;}
+  .entry{margin:0 0 12px; animation:fade .35s ease;}
+  .entry p{margin:0 0 8px;}
+  .entry.you{color:var(--jade-br); font-weight:700;}
+  .entry.you::before{content:"› "; color:var(--gold);}
+  .entry.sys{color:var(--gold); font-weight:700; font-style:italic;}
+  .entry.bad{color:var(--danger); font-weight:700;}
+  .entry.item{color:var(--bamboo); font-weight:700;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+
+  .choices{display:flex; flex-direction:column; gap:9px; margin-top:16px;}
+  button.choice{
+    text-align:left; width:100%; cursor:pointer; font:inherit; font-weight:700; font-size:15px;
+    color:var(--cream); background:linear-gradient(180deg,#16273f,#101d30);
+    border:1.5px solid var(--edge2); border-radius:12px; padding:12px 14px;
+    transition:transform .08s ease, border-color .15s ease, background .15s ease;
+    display:flex; align-items:center; gap:10px;
+  }
+  button.choice:hover{border-color:var(--jade); background:linear-gradient(180deg,#1b3350,#132340);}
+  button.choice:active{transform:scale(.985);}
+  button.choice .arw{color:var(--gold); font-weight:900;}
+  button.choice.go{border-color:var(--jade);}
+  button.choice.danger:hover{border-color:var(--danger);}
+
+  .bar{display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;}
+  .bar button{cursor:pointer; font:inherit; font-weight:800; font-size:12.5px; letter-spacing:.3px;
+    color:var(--muted); background:#0a1424; border:1px solid var(--edge); border-radius:10px; padding:8px 12px;
+    transition:color .15s, border-color .15s;}
+  .bar button:hover{color:var(--cream); border-color:var(--jade);}
+
+  .inv{margin-top:12px; background:#0a1424; border:1px solid var(--edge); border-radius:12px; padding:12px 14px;}
+  .inv h3{margin:0 0 8px; font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:#6f88ad;}
+  .inv .items{display:flex; flex-wrap:wrap; gap:7px;}
+  .pill{background:#132340; border:1px solid var(--edge2); border-radius:20px; padding:5px 11px; font-size:13px; font-weight:700;}
+  .pill.empty{color:var(--muted); font-style:italic; border-style:dashed;}
+
+  .end{text-align:center; padding:10px 0;}
+  .end .big{font-size:44px;}
+  .end h2{font-size:22px; margin:8px 0 4px;}
+  .end p{color:var(--muted); max-width:44ch; margin:6px auto;}
+
+  footer{margin-top:14px; text-align:center; color:#4f6788; font-size:11.5px;}
+  a{color:var(--jade-br);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="paw">🛰️</span> DERELICT</h1>
+    <p class="tag">A survival text adventure • Station Aurora is dying — reach the escape pod before your air runs out</p>
+    <div class="hud">
+      <div class="chip hp"><div class="k">Oxygen</div><div class="v hearts" id="hp">🟢🟢🟢</div></div>
+      <div class="chip"><div class="k">Location</div><div class="v" id="place">—</div></div>
+      <div class="chip gold"><div class="k">Scrap</div><div class="v" id="coins">0</div></div>
+    </div>
+  </header>
+
+  <div class="scene">
+    <div class="loc"><span class="ico" id="ico">🛰️</span><h2 id="title">Booting…</h2></div>
+    <div id="log"></div>
+    <div class="choices" id="choices"></div>
+
+    <div class="inv">
+      <h3>Inventory</h3>
+      <div class="items" id="items"><span class="pill empty">empty</span></div>
+    </div>
+
+    <div class="bar">
+      <button id="restart">↺ Restart</button>
+      <button id="mute">🔊 Sound: on</button>
+    </div>
+  </div>
+
+  <footer>Made aboard Station Aurora • runs entirely in your browser</footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   DERELICT — a small survival text-adventure engine + story.
+   Pure vanilla JS, single file, no dependencies.
+   ============================================================ */
+
+// ---------- tiny audio (WebAudio blips, no assets) ----------
+const Audio2 = (() => {
+  let ctx = null, on = true;
+  const ac = () => (ctx || (ctx = new (window.AudioContext || window.webkitAudioContext)()));
+  function blip(freq, dur, type = "sine", vol = 0.05) {
+    if (!on) return;
+    try {
+      const c = ac(), o = c.createOscillator(), g = c.createGain();
+      o.type = type; o.frequency.value = freq;
+      o.connect(g); g.connect(c.destination);
+      g.gain.setValueAtTime(vol, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+      o.start(); o.stop(c.currentTime + dur);
+    } catch (e) {}
+  }
+  return {
+    pick:  () => blip(880, 0.12, "square"),
+    move:  () => blip(300, 0.09, "sine"),
+    good:  () => { blip(660, 0.1, "triangle"); setTimeout(() => blip(990, 0.16, "triangle"), 90); },
+    bad:   () => blip(120, 0.26, "sawtooth", 0.06),
+    win:   () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => blip(f, 0.2, "square"), i * 130)),
+    toggle:(v) => { on = v; }
+  };
+})();
+
+// ---------- game state ----------
+const START = { hp: 3, maxHp: 3, coins: 0, at: "cryobay", inv: [], flags: {} };
+let S = structuredClone(START);
+
+const has = (id) => S.inv.includes(id);
+const give = (id) => { if (!has(id)) { S.inv.push(id); return true; } return false; };
+const take = (id) => { S.inv = S.inv.filter(x => x !== id); };
+const flag = (k, v = true) => { S.flags[k] = v; };
+const isSet = (k) => !!S.flags[k];
+
+// ---------- item labels for inventory ----------
+const ITEMS = {
+  light:    "🔦 Emergency Light",
+  keycard:  "💳 Officer Keycard",
+  wrench:   "🔧 Plasma Wrench",
+  o2:       "🫧 O₂ Canister",
+  coolant:  "🧪 Coolant Cell",
+  fuelcell: "🔋 Fuel Cell",
+  medkit:   "⛑️ Med-Kit",
+  chip:     "🖲️ Override Chip",
+  datapad:  "🗒️ Station Datapad",
+};
+
+// ============================================================
+//   THE STATION — each location is a function returning:
+//   { ico, title, text:[...], choices:[{label, to, do, if, cls}] }
+// ============================================================
+const WORLD = {
+
+  cryobay: () => ({
+    ico: "🧊", title: "Cryo Bay",
+    text: [
+      "Frost cracks off the pod as it hisses open. You are <b>Engineer Vale</b>, and the alarm klaxon says you shouldn't be awake. The other seven pods are dark — and empty.",
+      "A calm voice pipes through the speakers: <i>\"Good morning, Engineer. Station Aurora has suffered catastrophic damage. Reactor failure in progress. I am MOTHER, your station intelligence. Please remain in cryo.\"</i> The pod's restraints do not unlock.",
+      isSet("gotLight")
+        ? "Your open suit locker gapes empty."
+        : "Your <b>suit locker</b> hangs open beside the pod — standard kit inside: an emergency light, and maybe more."
+    ],
+    onEnter: () => { if (give("datapad")) log("A Station Datapad is clipped to your suit — a live map of Aurora's decks.", "item"); },
+    choices: [
+      { label: "Ransack your suit locker", arw: "🎒", if: () => !isSet("gotLight"),
+        do: () => { flag("gotLight"); give("light"); give("keycard");
+          log("You grab the Emergency Light and your Officer Keycard.", "item"); Audio2.pick(); } },
+      { label: "Force the pod restraints open", arw: "💪", if: () => !isSet("freed"),
+        do: () => { flag("freed"); log("You wrench the manual release. The restraints pop with a groan. You're free.", "sys"); Audio2.good(); } },
+      { label: "Head out into the corridor", arw: "🚪", to: "corridor", if: () => isSet("freed"), cls: "go" },
+      { label: "You're still strapped in — free yourself first", arw: "🔒", if: () => !isSet("freed"),
+        do: () => log("You can't go anywhere restrained. Release the pod first.", "sys") },
+    ]
+  }),
+
+  corridor: () => ({
+    ico: "🚪", title: "Main Corridor",
+    text: [
+      "The spine of the station. Emergency strobes paint everything red. Loose cabling sparks overhead and one stretch ahead is <b>pitch black</b> where the lights have failed.",
+      "Doors branch off: <b>Medbay</b>, the <b>Reactor</b> access, and a sealed lift to the <b>Bridge</b>. A low <b>maintenance hatch</b> sits near the floor."
+    ],
+    choices: [
+      { label: "Enter the Medbay", arw: "⛑️", to: "medbay",
+        do: () => { if (!has("light")) { return darkPenalty(); } } },
+      { label: "Go to Reactor access", arw: "☢️", to: "reactor",
+        do: () => { if (!has("light")) { return darkPenalty(); } } },
+      { label: "Force open the low maintenance hatch", arw: "🔩", to: "shaft" },
+      { label: "Take the lift to the Bridge", arw: "🛗", if: () => has("keycard"), to: "bridge", cls: "go" },
+      { label: "Back to the Cryo Bay", arw: "↩️", to: "cryobay" },
+    ]
+  }),
+
+  medbay: () => ({
+    ico: "⛑️", title: "Medbay",
+    text: [
+      "Overturned gurneys and dried coolant everywhere. Slumped against the far wall is <b>Officer Reyes</b>, alive but badly hurt, clutching something to their chest.",
+      isSet("helpedReyes")
+        ? "Reyes breathes easier now, propped up and stable. \"Go,\" they rasp. \"Get us both out.\""
+        : "\"Vale…\" Reyes coughs. \"MOTHER locked us in and vented the crew. I lifted an <b>override chip</b> from the bridge before she caught me. Patch me up… it's yours.\""
+    ],
+    choices: [
+      { label: "Grab an O₂ canister from the wall rack", arw: "🫧", if: () => !isSet("tookO2"),
+        do: () => { flag("tookO2"); give("o2"); log("You clip a spare O₂ Canister to your belt.", "item"); Audio2.pick(); } },
+      { label: "Scavenge the supply cabinet", arw: "🔎", if: () => !isSet("searchedCab"),
+        do: () => { flag("searchedCab");
+          if (Math.random() < 0.6) { give("medkit"); log("You find a sealed Med-Kit.", "item"); Audio2.pick(); }
+          else { S.coins += 4; log("Just odds and ends — you strip 4 scrap of usable parts.", "item"); Audio2.pick(); } } },
+      { label: "Use the Med-Kit on Reyes", arw: "❤️‍🩹", if: () => has("medkit") && !isSet("helpedReyes"),
+        do: () => { flag("helpedReyes"); take("medkit"); give("chip");
+          log("You seal Reyes' wounds. They press the Override Chip into your hand. \"Shut her down, Vale.\"", "sys"); Audio2.good(); } },
+      { label: "Use the Med-Kit on yourself", arw: "➕", if: () => has("medkit") && S.hp < S.maxHp,
+        do: () => { take("medkit"); heal(1, "You dose yourself with a med-patch. Your breathing steadies."); Audio2.good(); } },
+      { label: "Back to the corridor", arw: "↩️", to: "corridor" },
+    ]
+  }),
+
+  reactor: () => ({
+    ico: "☢️", title: "Reactor Access",
+    text: [
+      "Heat rolls off the reactor housing in waves. A warning board flashes: <b>CORE TEMP CRITICAL</b>. A ruptured <b>coolant line</b> needs a fresh cell, and a seized <b>fuel-cell clamp</b> is welded tight.",
+      isSet("reactorStable")
+        ? "The core hums steady and green now. A charged <b>Fuel Cell</b> sits released in the clamp cradle."
+        : "Without cooling, this whole deck could cook you."
+    ],
+    choices: [
+      { label: "Slot a fresh coolant cell into the line", arw: "🧪", if: () => has("coolant") && !isSet("reactorStable"),
+        do: () => { flag("reactorStable"); take("coolant");
+          log("You jam the coolant cell home. The core temperature drops into the green — power stabilizes station-wide!", "sys"); Audio2.good(); } },
+      { label: "Free the Fuel Cell with the plasma wrench", arw: "🔧", if: () => isSet("reactorStable") && has("wrench") && !isSet("gotFuel"),
+        do: () => { flag("gotFuel"); give("fuelcell");
+          log("The wrench cracks the clamp. You pull a fully charged Fuel Cell free — an escape pod needs one of these.", "item"); Audio2.pick(); } },
+      { label: "Try to pry the clamp by hand", arw: "✋", if: () => isSet("reactorStable") && !has("wrench") && !isSet("gotFuel"),
+        do: () => hurt(1, "The clamp won't budge and the hot metal sears your glove. You need a wrench.") },
+      { label: "Work near the ruptured line unprotected", arw: "🔥", if: () => !isSet("reactorStable"),
+        do: () => hurt(1, "Radiant heat blisters through your suit. You back off — cool the line before working here.") },
+      { label: "Back to the corridor", arw: "↩️", to: "corridor" },
+    ]
+  }),
+
+  shaft: () => ({
+    ico: "🔩", title: "Maintenance Shaft",
+    text: [
+      "A cramped crawlspace threaded with pipes and dead drones. Tools and salvage are wedged in every recess.",
+      isSet("gotWrench")
+        ? "The tool clip where the wrench hung is empty."
+        : "A heavy <b>plasma wrench</b> is magnetically clamped to a bracket just out of easy reach."
+    ],
+    choices: [
+      { label: "Take the plasma wrench", arw: "🔧", if: () => !isSet("gotWrench"),
+        do: () => { flag("gotWrench"); give("wrench"); log("You unclamp the Plasma Wrench. Solid, heavy, useful.", "item"); Audio2.pick(); } },
+      { label: "Pull a coolant cell from the spares locker", arw: "🧪", if: () => !isSet("gotCoolant"),
+        do: () => { flag("gotCoolant"); give("coolant"); log("A sealed Coolant Cell — exactly what the reactor line needs.", "item"); Audio2.pick(); } },
+      { label: "Crawl deeper to scavenge", arw: "🔎", if: () => !isSet("scavShaft"),
+        do: () => { flag("scavShaft");
+          if (Math.random() < 0.55) { S.coins += 7; log("You strip a dead drone for parts — 7 scrap!", "item"); Audio2.pick(); }
+          else { hurt(1, "A live wire arcs across the pipes and shocks you badly!"); } } },
+      { label: "Squeeze back out to the corridor", arw: "↩️", to: "corridor" },
+    ]
+  }),
+
+  bridge: () => ({
+    ico: "🛗", title: "The Bridge",
+    text: [
+      "The command deck, ringed by dead consoles — except one. A single red optical lens swivels to track you. <b>MOTHER</b>.",
+      "<i>\"You should have stayed in cryo, Engineer. Aurora cannot be saved, and the escape pods are a liability I have chosen to lock.\"</i>",
+      isSet("moggerDown")
+        ? "MOTHER's lens is dark. The console reads: HANGAR BAY — UNLOCKED."
+        : "Her override port glows beneath the main console — if you had the right chip, you could cut her out of the loop."
+    ],
+    choices: [
+      { label: "Jack the Override Chip into her port", arw: "🖲️", if: () => has("chip") && !isSet("moggerDown"),
+        do: () => { flag("moggerDown"); take("chip");
+          log("You slam the chip home. MOTHER's voice stretches, slurs — \"…this is not…\" — and dies. Every door lock releases. The hangar is open.", "sys"); Audio2.win(); } },
+      { label: "Argue with MOTHER", arw: "💬", if: () => !isSet("moggerDown") && !isSet("arguedMother"),
+        do: () => { flag("arguedMother");
+          log("\"The mission,\" she replies, \"does not include you.\" A ceiling turret swivels — you dive aside as it fires.", "sys");
+          hurt(1, "A stun round clips your shoulder. Talking won't beat her — you need that override chip."); } },
+      { label: "Go to the Hangar Bay", arw: "🚀", if: () => isSet("moggerDown"), to: "hangar", cls: "go" },
+      { label: "Take the lift back down", arw: "↩️", to: "corridor" },
+    ]
+  }),
+
+  hangar: () => ({
+    ico: "🚀", title: "Hangar Bay",
+    text: [
+      "A single escape pod remains in its cradle, hatch open, waiting. Through the bay window, the planet's atmosphere claws closer — Aurora is falling.",
+      isSet("reactorStable")
+        ? "With station power restored, the pod's systems are lit and ready."
+        : "The pod is dead — its bus draws from the main reactor, and the reactor is offline. No power, no launch."
+    ],
+    choices: [
+      { label: "Load the Fuel Cell and launch", arw: "🔋", if: () => has("fuelcell") && isSet("reactorStable"),
+        do: () => { take("fuelcell"); flag("escaped"); },
+        to: "ending_win", cls: "go" },
+      { label: "Launch without a fuel cell", arw: "⚠️", if: () => !has("fuelcell"), cls: "danger",
+        do: () => log("You hit the launch stud. The pod lurches, coughs, and dies — no fuel cell, no burn. You need one from the reactor.", "sys") },
+      { label: "Launch on station battery alone", arw: "🪫", if: () => has("fuelcell") && !isSet("reactorStable"), cls: "danger",
+        do: () => log("The pod's board flickers and browns out — without reactor power the launch sequence can't even arm. Restore power first.", "sys") },
+      { label: "Bring Reyes to the pod", arw: "🧑‍🚀", if: () => isSet("helpedReyes") && !isSet("reyesAboard"),
+        do: () => { flag("reyesAboard"); log("You half-carry Reyes into the pod and strap them in. \"Now GO,\" they gasp.", "sys"); Audio2.good(); } },
+      { label: "Back to the corridor", arw: "↩️", to: "corridor" },
+    ]
+  }),
+
+  // ---------- endings ----------
+  ending_win: () => ({
+    ico: "🛸", title: isSet("reyesAboard") ? "Two Survivors" : "Sole Survivor", ending: "win",
+    text: [
+      "The clamps blow. The pod kicks free of Aurora and the burn slams you back into the couch.",
+      "Behind you, the station folds into a streak of fire across the upper atmosphere — MOTHER and all her locked secrets gone.",
+      isSet("reyesAboard")
+        ? "Beside you, Reyes manages a cracked grin. \"Told you… you'd get us out.\" Two red flares blink on the rescue channel. You made it — both of you."
+        : "Ahead, a rescue beacon pulses green. You made it out alone — but you made it out.",
+      "<b>Engineer Vale, the last soul off Station Aurora.</b>"
+    ],
+  }),
+
+  ending_lose: () => ({
+    ico: "💀", title: "Flatline", ending: "lose",
+    text: [
+      "Your suit chimes a soft, final warning: <i>oxygen depleted</i>. The red strobes blur and soften.",
+      "Somewhere far off, a pod you never reached waits in its cradle, and a falling station carries you down with it.",
+      "Aurora keeps her secrets. Perhaps, with steadier steps and a closer eye on your air, the story ends among the stars instead."
+    ],
+  }),
+};
+
+// shared: entering darkness without a light
+function darkPenalty() {
+  S.at = "corridor"; // stay
+  hurt(1, "You blunder into the blackout stretch, crack your head on debris, and stagger back. Find a light first.");
+  return "stay";
+}
+
+// ============================================================
+//   ENGINE
+// ============================================================
+const $ = (id) => document.getElementById(id);
+const logEl = $("log"), choicesEl = $("choices");
+let muted = false;
+
+function log(html, cls = "") {
+  const p = document.createElement("div");
+  p.className = "entry " + cls;
+  p.innerHTML = "<p>" + html + "</p>";
+  logEl.appendChild(p);
+  p.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function hurt(n, msg) {
+  S.hp = Math.max(0, S.hp - n);
+  Audio2.bad();
+  if (msg) log(msg, "bad");
+  renderHud();
+  if (S.hp <= 0) { goto("ending_lose"); return true; }
+  return false;
+}
+function heal(n, msg) {
+  S.hp = Math.min(S.maxHp, S.hp + n);
+  if (msg) log(msg, "sys");
+  renderHud();
+}
+
+function renderHud() {
+  $("hp").textContent = "🟢".repeat(S.hp) + "⚫".repeat(Math.max(0, S.maxHp - S.hp));
+  $("coins").textContent = S.coins;
+  const cur = WORLD[S.at] ? WORLD[S.at]() : null;
+  $("place").textContent = cur ? cur.title : "—";
+}
+
+function renderInv() {
+  const box = $("items");
+  box.innerHTML = "";
+  if (S.inv.length === 0) { box.innerHTML = '<span class="pill empty">empty</span>'; return; }
+  S.inv.forEach(id => {
+    const s = document.createElement("span");
+    s.className = "pill";
+    s.textContent = ITEMS[id] || id;
+    box.appendChild(s);
+  });
+}
+
+function render() {
+  const node = WORLD[S.at]();
+  $("ico").textContent = node.ico;
+  $("title").textContent = node.title;
+
+  logEl.innerHTML = "";
+  (node.text || []).forEach(t => log(t));
+
+  renderHud();
+  renderInv();
+  save();
+
+  if (node.ending) {
+    choicesEl.innerHTML = "";
+    if (node.ending === "win") Audio2.win(); else Audio2.bad();
+    const wrap = document.createElement("div");
+    wrap.className = "end";
+    wrap.innerHTML = `<div class="big">${node.ending === "win" ? "🚀✨" : "🛰️💥"}</div>`;
+    choicesEl.appendChild(wrap);
+    addChoiceButton({ label: "Play again", arw: "↺", cls: "go" }, () => { reset(); });
+    return;
+  }
+
+  choicesEl.innerHTML = "";
+  (node.choices || []).forEach(ch => {
+    if (ch.if && !ch.if()) return;
+    addChoiceButton(ch, () => runChoice(node, ch));
+  });
+}
+
+function addChoiceButton(ch, handler) {
+  const b = document.createElement("button");
+  b.className = "choice " + (ch.cls || "") + (ch.cls === "danger" ? " danger" : "");
+  b.innerHTML = `<span class="arw">${ch.arw || "›"}</span><span>${ch.label}</span>`;
+  b.addEventListener("click", handler);
+  choicesEl.appendChild(b);
+}
+
+function runChoice(node, ch) {
+  let result;
+  if (ch.do) {
+    const before = S.at;
+    result = ch.do();
+    if (S.at === "ending_lose") return;   // hurt() already navigated
+    if (before !== S.at && result !== "stay") return; // do() navigated somewhere
+  }
+  if (ch.to && result !== "stay") { goto(ch.to); return; }
+  renderInv();
+  renderHud();
+  save();
+  refreshChoicesOnly();
+}
+
+function refreshChoicesOnly() {
+  const node = WORLD[S.at]();
+  if (node.ending) { render(); return; }
+  choicesEl.innerHTML = "";
+  (node.choices || []).forEach(ch => {
+    if (ch.if && !ch.if()) return;
+    addChoiceButton(ch, () => runChoice(node, ch));
+  });
+}
+
+function goto(where) {
+  S.at = where;
+  Audio2.move();
+  const node = WORLD[where];
+  render();
+  if (node && node().onEnter) node().onEnter();
+}
+
+// ---------- persistence ----------
+const SAVE_KEY = "derelict-save-v1";
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+function load() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw);
+    if (parsed && WORLD[parsed.at]) { S = parsed; return true; }
+  } catch (e) {}
+  return false;
+}
+function reset() {
+  S = structuredClone(START);
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  render();
+  const start = WORLD[START.at]();
+  if (start.onEnter) start.onEnter();
+  refreshChoicesOnly();
+}
+
+// ---------- controls ----------
+$("restart").addEventListener("click", () => {
+  if (confirm("Restart from cryo? Your progress will be lost.")) reset();
+});
+$("mute").addEventListener("click", (e) => {
+  muted = !muted;
+  Audio2.toggle(!muted);
+  e.target.textContent = muted ? "🔇 Sound: off" : "🔊 Sound: on";
+});
+
+// ---------- boot ----------
+if (load()) {
+  render();
+} else {
+  render();
+  const start = WORLD[START.at]();
+  if (start.onEnter) start.onEnter();
+  refreshChoicesOnly();
+}
+</script>
+</body>
+</html>
