@@ -137,7 +137,7 @@
       <span class="gd">Reyes</span> comes with you.</p>
     <div class="keys">
       <div class="kbd">W A S D<small>Move</small></div>
-      <div class="kbd">Mouse / ← →<small>Look</small></div>
+      <div class="kbd">Drag / Mouse<small>Look</small></div>
       <div class="kbd">E<small>Interact</small></div>
       <div class="kbd">Shift<small>Sprint</small></div>
     </div>
@@ -214,15 +214,35 @@ function reset(){
 }
 
 // ---------- input ----------
-const keys={}; let locked=false;
+const keys={}; let locked=false, pitch=0;
+const SENS=0.0023, PITCH_MAX=()=>H3*0.42;
+function look(dx,dy){ player.a+=dx*SENS; pitch-=dy*0.55;
+  const m=PITCH_MAX(); if(pitch>m)pitch=m; if(pitch<-m)pitch=-m; }
 addEventListener('keydown',e=>{ const k=e.key.toLowerCase();
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
   keys[k]=true; if(k==='e') tryInteract(); });
 addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
-cv.addEventListener('click',()=>{ if(state==='play' && !locked) cv.requestPointerLock&&cv.requestPointerLock(); });
+
+// pointer lock when the browser allows it…
+cv.addEventListener('click',()=>{ if(state!=='play'||locked) return;
+  try{ const p=cv.requestPointerLock&&cv.requestPointerLock();
+    if(p&&p.catch) p.catch(()=>{}); }catch(e){} });
 document.addEventListener('pointerlockchange',()=>{ locked=(document.pointerLockElement===cv);
-  document.getElementById('lookHint').classList.toggle('hidden',locked||state!=='play'); });
-addEventListener('mousemove',e=>{ if(locked&&state==='play') player.a+=e.movementX*0.0023; });
+  hintUpdate(); });
+addEventListener('mousemove',e=>{ if(locked&&state==='play') look(e.movementX,e.movementY); });
+
+// …and drag-to-look everywhere (works even where pointer lock is blocked)
+let drag=null;
+cv.addEventListener('pointerdown',e=>{ if(state!=='play'||locked) return;
+  drag={x:e.clientX,y:e.clientY,id:e.pointerId};
+  cv.setPointerCapture&&cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove',e=>{ if(!drag||e.pointerId!==drag.id||state!=='play') return;
+  look((e.clientX-drag.x)*1.6,(e.clientY-drag.y)*1.6); drag.x=e.clientX; drag.y=e.clientY; });
+const endDrag=e=>{ if(drag&&e.pointerId===drag.id) drag=null; };
+cv.addEventListener('pointerup',endDrag); cv.addEventListener('pointercancel',endDrag);
+function hintUpdate(){ document.getElementById('lookHint').classList.toggle('hidden',state!=='play');
+  document.getElementById('lookHint').textContent = locked
+    ? 'Mouse look active · Esc to release' : 'Drag to look · ←/→ keys also turn'; }
 
 // ---------- interaction ----------
 function dist(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
@@ -365,13 +385,14 @@ function render(){
   const dirX=Math.cos(player.a), dirY=Math.sin(player.a);
   const planeX=-Math.sin(player.a)*P, planeY=Math.cos(player.a)*P;
 
-  // ceiling / floor
-  const cg=ctx.createLinearGradient(0,0,0,H3/2);
+  // ceiling / floor split at the pitched horizon
+  const hor=H3/2+pitch;
+  const cg=ctx.createLinearGradient(0,0,0,Math.max(1,hor));
   cg.addColorStop(0,"#0a1018"); cg.addColorStop(1,"#04070c");
-  ctx.fillStyle=cg; ctx.fillRect(0,0,W3,H3/2);
-  const fg=ctx.createLinearGradient(0,H3/2,0,H3);
+  ctx.fillStyle=cg; ctx.fillRect(0,0,W3,Math.max(0,hor));
+  const fg=ctx.createLinearGradient(0,hor,0,H3);
   fg.addColorStop(0,"#04070c"); fg.addColorStop(1,"#0b131d");
-  ctx.fillStyle=fg; ctx.fillRect(0,H3/2,W3,H3/2);
+  ctx.fillStyle=fg; ctx.fillRect(0,Math.max(0,hor),W3,H3-Math.max(0,hor));
 
   // walls (DDA per column)
   for(let x=0;x<W3;x++){
@@ -392,7 +413,7 @@ function render(){
     let perp=side===0?(sdx-ddx):(sdy-ddy); if(perp<0.02)perp=0.02;
     zbuf[x]=perp;
     const lh=Math.floor(H3/perp);
-    let y0=Math.floor(-lh/2+H3/2), y1=Math.floor(lh/2+H3/2);
+    let y0=Math.floor(-lh/2+hor), y1=Math.floor(lh/2+hor);
     if(y0<0)y0=0; if(y1>H3)y1=H3;
     // shading: helmet-lamp falloff + side darkening
     let bright=Math.max(0.05, 1.35 - perp/9);
@@ -432,7 +453,7 @@ function render(){
     const sh=Math.abs(H3/ty)*s.scale;
     const sw=sh*asp;
     const vOff=(s.vShift*H3)/ty;
-    const drawY=Math.floor(-sh/2+H3/2+vOff);
+    const drawY=Math.floor(-sh/2+hor+vOff);
     const startX=Math.floor(scrX-sw/2), endX=Math.floor(scrX+sw/2);
     const dd=Math.sqrt(s.d);
     let bright= s.emissive ? Math.max(0.25,1.3-dd/12) : Math.max(0.06,1.3-dd/9);
@@ -539,7 +560,7 @@ function startGame(){ reset(); state='play'; resize();
   document.getElementById('mini').classList.remove('hidden');
   document.getElementById('sound').classList.remove('hidden');
   document.getElementById('cross').classList.remove('hidden');
-  document.getElementById('lookHint').classList.remove('hidden');
+  pitch=0; hintUpdate();
   updateHUD(); beep(440,.09); beep(660,.09,.08); }
 function endGame(){ state='over';
   if(document.pointerLockElement===cv) document.exitPointerLock();
