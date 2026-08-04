@@ -1,0 +1,620 @@
+<title>DERELICT — Station Aurora</title>
+<style>
+  :root{
+    --void:#05070d; --panel:#0e1420; --floor:#141d2c; --floor2:#111826;
+    --wall:#1d2a3d; --wall-hi:#2a3c56; --grid:#0b1119;
+    --cyan:#4fe3ff; --cyan-dim:#2b7f93; --o2:#37d97f; --o2-dim:#1c6b41;
+    --amber:#ffb03a; --hazard:#ff5a3c; --ink:#cddcea; --ink-dim:#6d829a;
+    --pod:#ffd089;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--void);color:var(--ink);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow:hidden}
+  #stage{position:fixed;inset:0;display:grid;place-items:center;background:
+    radial-gradient(120% 90% at 50% -10%,#0a1220 0%,#05070d 60%,#03040a 100%)}
+  canvas{display:block;image-rendering:pixelidealized;
+    box-shadow:0 0 0 1px #1a2740,0 30px 80px -20px #000,0 0 120px -40px var(--cyan-dim);
+    border-radius:6px;background:var(--void);max-width:100vw;max-height:100vh}
+
+  /* ---- HUD ---- */
+  #hud{position:fixed;top:0;left:0;right:0;padding:14px 18px;display:flex;
+    gap:18px;align-items:center;pointer-events:none;
+    font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    text-shadow:0 1px 2px #000}
+  #hud.hidden{display:none}
+  .o2wrap{display:flex;align-items:center;gap:10px;min-width:230px}
+  .o2label{color:var(--ink-dim)}
+  .o2bar{position:relative;flex:1;height:12px;border:1px solid #23364e;
+    border-radius:6px;background:#0a121d;overflow:hidden}
+  .o2fill{position:absolute;inset:0;transform-origin:left;
+    background:linear-gradient(90deg,var(--o2-dim),var(--o2));
+    box-shadow:0 0 10px var(--o2-dim);transition:transform .12s linear}
+  .o2pct{min-width:38px;text-align:right;font-variant-numeric:tabular-nums;color:var(--o2)}
+  #objective{margin-left:auto;color:var(--cyan);display:flex;align-items:center;gap:8px;
+    max-width:46vw;text-align:right}
+  #objective .tag{color:var(--ink-dim)}
+  #inv{display:flex;gap:8px;align-items:center}
+  .chip{border:1px solid #26384f;border-radius:5px;padding:3px 8px;color:var(--ink-dim);
+    font-size:11px;letter-spacing:.1em}
+  .chip.on{color:var(--void);border-color:transparent;font-weight:700}
+  .chip.key{background:var(--amber)} .chip.wr{background:var(--cyan)}
+  .chip.rq{background:var(--o2)}
+
+  /* ---- minimap ---- */
+  #mini{position:fixed;right:16px;bottom:16px;border:1px solid #223349;
+    border-radius:6px;background:rgba(6,10,16,.72);backdrop-filter:blur(2px);
+    padding:8px}
+  #mini.hidden{display:none}
+  #mini .cap{font-size:10px;letter-spacing:.16em;color:var(--ink-dim);
+    text-transform:uppercase;margin-bottom:5px;text-align:center}
+
+  /* ---- overlays ---- */
+  .screen{position:fixed;inset:0;display:grid;place-items:center;
+    background:radial-gradient(130% 100% at 50% 20%,rgba(10,18,30,.86),rgba(3,5,10,.96));
+    backdrop-filter:blur(3px);z-index:20;padding:24px}
+  .screen.hidden{display:none}
+  .card{max-width:560px;width:100%;text-align:center;
+    border:1px solid #1c2a3e;border-radius:12px;padding:38px 34px;
+    background:linear-gradient(180deg,rgba(16,24,38,.9),rgba(8,12,20,.94));
+    box-shadow:0 40px 90px -30px #000, inset 0 1px 0 #ffffff10}
+  .eyebrow{font-size:11px;letter-spacing:.4em;text-transform:uppercase;color:var(--hazard);
+    margin-bottom:14px}
+  .eyebrow.ok{color:var(--o2)} .eyebrow.warn{color:var(--amber)}
+  .title{font-family:"Arial Black",Impact,system-ui,sans-serif;font-weight:900;
+    font-size:clamp(40px,9vw,74px);line-height:.92;letter-spacing:-.02em;
+    background:linear-gradient(180deg,#eaf6ff,#7fb6cf);-webkit-background-clip:text;
+    background-clip:text;color:transparent;margin-bottom:6px}
+  .sub{color:var(--ink-dim);font-size:13px;line-height:1.7;letter-spacing:.02em;
+    margin:0 auto 24px;max-width:44ch}
+  .sub b{color:var(--ink)} .sub .hz{color:var(--hazard)} .sub .gd{color:var(--o2)}
+  .keys{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:26px}
+  .kbd{border:1px solid #2a3c54;border-bottom-width:3px;border-radius:6px;
+    padding:7px 11px;font-size:12px;color:var(--ink);background:#0c1420;min-width:34px}
+  .kbd small{display:block;color:var(--ink-dim);font-size:9px;letter-spacing:.12em;
+    text-transform:uppercase;margin-top:3px}
+  button.play{cursor:pointer;font:inherit;letter-spacing:.16em;text-transform:uppercase;
+    font-size:14px;font-weight:700;color:var(--void);border:none;border-radius:8px;
+    padding:15px 34px;background:linear-gradient(180deg,#8ff0ff,var(--cyan));
+    box-shadow:0 12px 30px -10px var(--cyan-dim),inset 0 1px 0 #ffffff80;
+    transition:transform .1s ease,filter .1s ease}
+  button.play:hover{transform:translateY(-2px);filter:brightness(1.08)}
+  button.play:active{transform:translateY(0)}
+  button.play:focus-visible{outline:2px solid #fff;outline-offset:3px}
+  .foot{margin-top:18px;font-size:11px;color:var(--ink-dim);letter-spacing:.06em}
+  .foot span{color:var(--cyan)}
+
+  #sound{position:fixed;left:16px;bottom:16px;z-index:15;cursor:pointer;
+    border:1px solid #223349;border-radius:6px;background:rgba(6,10,16,.72);
+    color:var(--ink-dim);font:inherit;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;padding:7px 11px}
+  #sound.hidden{display:none}
+  #toast{position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
+    z-index:14;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;
+    background:rgba(8,14,22,.92);border:1px solid #26384f;border-radius:8px;
+    padding:10px 16px;font-size:13px;letter-spacing:.03em;color:var(--ink);
+    box-shadow:0 14px 30px -12px #000}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #toast .i{color:var(--amber);margin-right:8px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div id="stage"><canvas id="c"></canvas></div>
+
+<div id="hud" class="hidden">
+  <div class="o2wrap">
+    <span class="o2label">O₂</span>
+    <div class="o2bar"><div class="o2fill" id="o2fill"></div></div>
+    <span class="o2pct" id="o2pct">100</span>
+  </div>
+  <div id="inv">
+    <span class="chip key" id="chipKey" hidden>KEYCARD</span>
+    <span class="chip wr" id="chipWr" hidden>WRENCH</span>
+    <span class="chip rq" id="chipRq" hidden>REYES</span>
+  </div>
+  <div id="objective"><span class="tag">Objective //</span><span id="objTxt">—</span></div>
+</div>
+
+<canvas id="mini" class="hidden" width="150" height="130"></canvas>
+<button id="sound" class="hidden">♪ Sound: On</button>
+<div id="toast"><span class="i">▲</span><span id="toastTxt"></span></div>
+
+<div class="screen" id="titleScreen">
+  <div class="card">
+    <div class="eyebrow">Deep-space salvage vessel · life support failing</div>
+    <h1 class="title">DERELICT</h1>
+    <p class="sub">The station <b>Aurora</b> is dead and drifting. You are <b>Engineer Vale</b>,
+      thawed early from cryo with a <span class="hz">cracked oxygen line</span>. Find the
+      <b>keycard</b>, pry the <b>wrench</b> from the burning reactor, and reach the
+      <b>escape pod</b> before you suffocate. Deckmate <span class="gd">Reyes</span> is
+      still out there — leave, or bring them home.</p>
+    <div class="keys">
+      <div class="kbd">W A S D<small>Move</small></div>
+      <div class="kbd">E<small>Interact</small></div>
+      <div class="kbd">Shift<small>Sprint</small></div>
+      <div class="kbd">M<small>Map</small></div>
+    </div>
+    <button class="play" id="startBtn">Wake up</button>
+    <div class="foot">Watch your <span>O₂</span> — darkness hides the way, fire and the loose drone burn air fast.</div>
+  </div>
+</div>
+
+<div class="screen hidden" id="endScreen">
+  <div class="card">
+    <div class="eyebrow" id="endEyebrow">Signal lost</div>
+    <h1 class="title" id="endTitle" style="font-size:clamp(30px,7vw,54px)">—</h1>
+    <p class="sub" id="endSub">—</p>
+    <button class="play" id="againBtn">Try again</button>
+    <div class="foot" id="endFoot"></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+const TILE=30, PW=22, PH=22;
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const mini=document.getElementById('mini'), mctx=mini.getContext('2d');
+
+// ---------- tile types ----------
+const W=1, F=0, L=2, FIRE=3; // wall, floor, locked door, fire
+const MAPW=48, MAPH=40;
+let grid=[];
+
+function fill(){ grid=[]; for(let y=0;y<MAPH;y++){grid.push(new Array(MAPW).fill(W));} }
+function carve(x0,y0,x1,y1,t=F){ for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)
+  if(x>=0&&x<MAPW&&y>=0&&y<MAPH) grid[y][x]=t; }
+
+// rooms {name,x0,y0,x1,y1}
+const rooms=[
+  {n:"Cryo Bay",     x0:4, y0:4, x1:11,y1:10},
+  {n:"Suit Locker",  x0:4, y0:14,x1:11,y1:20},
+  {n:"Storage",      x0:4, y0:26,x1:11,y1:34},
+  {n:"Med Bay",      x0:30,y0:4, x1:40,y1:11},
+  {n:"Reactor",      x0:30,y0:15,x1:44,y1:25},
+  {n:"Hangar",       x0:30,y0:29,x1:45,y1:37},
+];
+let discovered;
+
+function buildLevel(){
+  fill();
+  carve(24,4,26,37);            // main spine (vertical corridor)
+  rooms.forEach(r=>carve(r.x0,r.y0,r.x1,r.y1));
+  // branch corridors to spine
+  carve(11,6,24,7);   // cryo
+  carve(11,16,24,17); // suit
+  carve(11,29,24,30); // storage
+  carve(26,6,30,7);   // med bay
+  carve(26,19,30,20); // reactor
+  carve(26,32,30,33); // hangar
+  // hangar locked door (needs keycard)
+  grid[32][30]=L; grid[33][30]=L;
+  // reactor fire field
+  const fires=[[38,18],[40,18],[42,19],[36,20],[39,20],[41,20],[43,21],
+               [37,22],[40,22],[42,23],[35,23],[38,24],[41,24]];
+  fires.forEach(([x,y])=>{ if(grid[y][x]===F) grid[y][x]=FIRE; });
+  discovered=Array.from({length:MAPH},()=>new Array(MAPW).fill(false));
+}
+
+// ---------- entities ----------
+let player, reyes, drone, items, pod, state, oxygen, t0, lastTime, msgTimer=0, dmgFlash=0;
+const flags={key:false,wrench:false,reyes:false,unlocked:false};
+const trail=[];
+
+function tc(tx,ty){ return {x:tx*TILE+TILE/2, y:ty*TILE+TILE/2}; }
+
+function reset(){
+  buildLevel();
+  flags.key=flags.wrench=flags.reyes=flags.unlocked=false;
+  trail.length=0;
+  const s=tc(8,7);
+  player={x:s.x, y:s.y, vx:0, vy:0, dir:1, walk:0};
+  reyes ={x:tc(37,8).x, y:tc(37,8).y, freed:false};
+  drone ={x:tc(25,20).x, y:tc(25,20).y, from:5, to:36, dir:1, hit:0};
+  items=[
+    {id:"o2a", type:"o2",  ...tc(7,17),  got:false, label:"Oxygen canister"},
+    {id:"o2b", type:"o2",  ...tc(35,6),  got:false, label:"Oxygen canister"},
+    {id:"key", type:"key", ...tc(7,30),  got:false, label:"Hangar keycard"},
+    {id:"wr",  type:"wr",  ...tc(40,20), got:false, label:"Repair wrench"},
+  ];
+  pod={...tc(43,33), repaired:false};
+  oxygen=100; t0=performance.now(); dmgFlash=0;
+}
+
+// ---------- input ----------
+const keys={};
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  keys[k]=true;
+  if(k==='e') tryInteract();
+  if(k==='m') toggleMap();
+});
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+// ---------- collision ----------
+function solidAt(px,py){
+  const tx=Math.floor(px/TILE), ty=Math.floor(py/TILE);
+  if(tx<0||ty<0||tx>=MAPW||ty>=MAPH) return true;
+  const t=grid[ty][tx];
+  if(t===W) return true;
+  if(t===L) return !flags.unlocked;
+  return false; // floor & fire passable
+}
+function blocked(nx,ny){
+  const hw=PW/2-2, hh=PH/2-2;
+  return solidAt(nx-hw,ny-hh)||solidAt(nx+hw,ny-hh)||
+         solidAt(nx-hw,ny+hh)||solidAt(nx+hw,ny+hh);
+}
+function tileType(px,py){
+  const tx=Math.floor(px/TILE), ty=Math.floor(py/TILE);
+  if(tx<0||ty<0||tx>=MAPW||ty>=MAPH) return W;
+  return grid[ty][tx];
+}
+
+// ---------- interaction ----------
+function near(a,b,r){ return Math.hypot(a.x-b.x,a.y-b.y)<r; }
+function tryInteract(){
+  if(state!=='play') return;
+  if(!reyes.freed && near(player,reyes,TILE*1.2)){
+    reyes.freed=true; flags.reyes=true; toast("Reyes is with you. Get them to the pod.");
+    beep(560,.12); beep(720,.12,.06); updateHUD(); return;
+  }
+  if(near(player,pod,TILE*1.4)){
+    if(!flags.wrench){ toast("The pod's coupling is broken — you need the wrench."); beep(160,.15); return; }
+    win(); return;
+  }
+  toast("Nothing to interact with here.");
+}
+
+// ---------- loop ----------
+function update(dt){
+  // movement
+  const sprint=(keys['shift'])?1.7:1;
+  const sp=118*sprint;
+  let ix=(keys['d']||keys['arrowright']?1:0)-(keys['a']||keys['arrowleft']?1:0);
+  let iy=(keys['s']||keys['arrowdown']?1:0)-(keys['w']||keys['arrowup']?1:0);
+  if(ix&&iy){ ix*=.7071; iy*=.7071; }
+  if(ix) player.dir=ix>0?1:-1;
+  const nx=player.x+ix*sp*dt;
+  if(!blocked(nx,player.y)) player.x=nx;
+  const ny=player.y+iy*sp*dt;
+  if(!blocked(player.x,ny)) player.y=ny;
+  player.walk += (ix||iy)? dt*10 : 0;
+
+  // reyes trailing
+  trail.push({x:player.x,y:player.y});
+  if(trail.length>260) trail.shift();
+  if(reyes.freed){
+    const target=trail[Math.max(0,trail.length-34)];
+    reyes.x+=(target.x-reyes.x)*Math.min(1,dt*6);
+    reyes.y+=(target.y-reyes.y)*Math.min(1,dt*6);
+  }
+
+  // drone patrol along spine
+  const dsp=70;
+  drone.y += drone.dir*dsp*dt;
+  if(drone.y> drone.to*TILE){ drone.y=drone.to*TILE; drone.dir=-1; }
+  if(drone.y< drone.from*TILE){ drone.y=drone.from*TILE; drone.dir=1; }
+  drone.hit=Math.max(0,drone.hit-dt);
+  if(near(player,drone,TILE*0.9) && drone.hit<=0){
+    oxygen-=12; drone.hit=1.1; dmgFlash=1; beep(90,.18);
+    // knockback
+    const a=Math.atan2(player.y-drone.y,player.x-drone.x);
+    player.x+=Math.cos(a)*18; player.y+=Math.sin(a)*18;
+  }
+
+  // oxygen drain
+  let drain=0.9;
+  if(tileType(player.x,player.y)===FIRE){ drain=13; dmgFlash=Math.min(1,dmgFlash+dt*3);
+    if(!fireBeepT||performance.now()-fireBeepT>400){fireBeepT=performance.now(); beep(240,.05);} }
+  oxygen-=drain*dt;
+  dmgFlash=Math.max(0,dmgFlash-dt*2);
+
+  // pickups
+  items.forEach(it=>{
+    if(it.got) return;
+    if(near(player,it,TILE*0.85)){
+      it.got=true;
+      if(it.type==="o2"){ oxygen=Math.min(100,oxygen+42); toast("+42 oxygen"); beep(680,.12); }
+      if(it.type==="key"){ flags.key=true; flags.unlocked=true; toast("Keycard acquired — Hangar unlocked."); beep(520,.1); beep(660,.1,.07); }
+      if(it.type==="wr"){ flags.wrench=true; pod.repaired=true; toast("Wrench acquired — you can repair the pod."); beep(440,.1); beep(560,.1,.07); }
+      updateHUD();
+    }
+  });
+
+  // reveal discovered tiles around player (fog)
+  const px=Math.floor(player.x/TILE), py=Math.floor(player.y/TILE), R=6;
+  for(let y=py-R;y<=py+R;y++)for(let x=px-R;x<=px+R;x++)
+    if(x>=0&&y>=0&&x<MAPW&&y<MAPH && (x-px)**2+(y-py)**2<=R*R) discovered[y][x]=true;
+
+  if(oxygen<=0){ oxygen=0; lose(); }
+  updateHUD();
+}
+
+let fireBeepT=0;
+
+// ---------- render ----------
+function resize(){
+  const maxW=Math.min(innerWidth, 980), maxH=Math.min(innerHeight, 720);
+  cv.width=maxW; cv.height=maxH;
+}
+addEventListener('resize',resize);
+
+function render(){
+  const cw=cv.width, ch=cv.height;
+  // camera
+  let camx=player.x-cw/2, camy=player.y-ch/2;
+  camx=Math.max(0,Math.min(MAPW*TILE-cw,camx));
+  camy=Math.max(0,Math.min(MAPH*TILE-ch,camy));
+  ctx.clearRect(0,0,cw,ch);
+  ctx.fillStyle="#04060b"; ctx.fillRect(0,0,cw,ch);
+
+  const x0=Math.floor(camx/TILE), y0=Math.floor(camy/TILE);
+  const x1=Math.ceil((camx+cw)/TILE), y1=Math.ceil((camy+ch)/TILE);
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    if(x<0||y<0||x>=MAPW||y>=MAPH) continue;
+    const sx=Math.round(x*TILE-camx), sy=Math.round(y*TILE-camy), t=grid[y][x];
+    if(t===W){
+      ctx.fillStyle="#141e2e"; ctx.fillRect(sx,sy,TILE,TILE);
+      ctx.fillStyle="#1d2b40"; ctx.fillRect(sx,sy,TILE,3);
+      ctx.fillStyle="#0c1420"; ctx.fillRect(sx,sy+TILE-3,TILE,3);
+    } else {
+      // floor
+      ctx.fillStyle=((x+y)&1)?"#111a28":"#0e1622"; ctx.fillRect(sx,sy,TILE,TILE);
+      ctx.strokeStyle="#0a111c"; ctx.lineWidth=1; ctx.strokeRect(sx+.5,sy+.5,TILE-1,TILE-1);
+      if(t===L){ ctx.fillStyle=flags.unlocked?"#12351f":"#3a1a12";
+        ctx.fillRect(sx+2,sy+2,TILE-4,TILE-4);
+        ctx.fillStyle=flags.unlocked?"#37d97f":"#ff5a3c";
+        for(let i=4;i<TILE-4;i+=6) ctx.fillRect(sx+i,sy+4,3,TILE-8); }
+      if(t===FIRE){ drawFire(sx,sy); }
+    }
+  }
+
+  // items
+  items.forEach(it=>{ if(it.got) return; drawItem(it,camx,camy); });
+  // pod
+  drawPod(camx,camy);
+  // reyes
+  drawReyes(camx,camy);
+  // drone
+  drawDrone(camx,camy);
+  // player
+  drawPlayer(camx,camy);
+
+  // darkness / light radius
+  const grd=ctx.createRadialGradient(
+    player.x-camx,player.y-camy,TILE*1.2,
+    player.x-camx,player.y-camy,TILE*7.4);
+  grd.addColorStop(0,"rgba(0,0,0,0)");
+  grd.addColorStop(.62,"rgba(3,5,10,.30)");
+  grd.addColorStop(1,"rgba(2,3,7,.93)");
+  ctx.fillStyle=grd; ctx.fillRect(0,0,cw,ch);
+
+  // damage vignette
+  if(dmgFlash>0){
+    ctx.fillStyle=`rgba(255,50,40,${0.28*dmgFlash})`; ctx.fillRect(0,0,cw,ch);
+  }
+  // low-oxygen pulse
+  if(oxygen<25){
+    const p=(Math.sin(performance.now()/220)+1)/2;
+    ctx.fillStyle=`rgba(255,90,60,${0.12+0.12*p})`; ctx.fillRect(0,0,cw,ch);
+  }
+  // scanlines
+  ctx.fillStyle="rgba(0,0,0,.10)";
+  for(let y=0;y<ch;y+=3) ctx.fillRect(0,y,cw,1);
+
+  drawMini();
+}
+
+function drawFire(sx,sy){
+  const t=performance.now()/120;
+  ctx.fillStyle="#2a0f08"; ctx.fillRect(sx+1,sy+1,TILE-2,TILE-2);
+  for(let i=0;i<4;i++){
+    const fx=sx+6+i*6+Math.sin(t+i)*2, fy=sy+TILE-6-Math.abs(Math.sin(t*1.4+i))*12;
+    const h=8+Math.abs(Math.sin(t+i*2))*8;
+    const g=ctx.createLinearGradient(0,fy,0,fy+h);
+    g.addColorStop(0,"#ffd23a"); g.addColorStop(.5,"#ff7a2c"); g.addColorStop(1,"#ff3b1e");
+    ctx.fillStyle=g; ctx.beginPath();
+    ctx.ellipse(fx,fy+h/2,2.6,h/2,0,0,7); ctx.fill();
+  }
+}
+function glowDot(x,y,r,col,pulse){
+  const p=pulse?(Math.sin(performance.now()/300)+1)/2:0.5;
+  ctx.save(); ctx.shadowBlur=16+8*p; ctx.shadowColor=col; ctx.fillStyle=col;
+  ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); ctx.restore();
+}
+function drawItem(it,cx,cy){
+  const x=it.x-cx, y=it.y-cy, b=Math.sin(performance.now()/400+it.x)*2;
+  const col=it.type==="o2"?"#37d97f":it.type==="key"?"#ffb03a":"#4fe3ff";
+  glowDot(x,y+b,7,col,true);
+  ctx.fillStyle="#04060b"; ctx.font="bold 10px ui-monospace,monospace";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(it.type==="o2"?"O":it.type==="key"?"K":"W",x,y+b+.5);
+  ctx.textAlign="left";
+}
+function drawPod(cx,cy){
+  const x=pod.x-cx, y=pod.y-cy;
+  ctx.save();
+  ctx.shadowBlur=20; ctx.shadowColor=flags.wrench?"#37d97f":"#ffd089";
+  ctx.fillStyle="#1a2436"; ctx.strokeStyle=flags.wrench?"#37d97f":"#ffd089"; ctx.lineWidth=2;
+  roundRect(x-18,y-22,36,44,10); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur=0;
+  const g=ctx.createLinearGradient(0,y-16,0,y+4);
+  g.addColorStop(0,"#9fe8ff"); g.addColorStop(1,"#2a5b74");
+  ctx.fillStyle=g; roundRect(x-11,y-16,22,20,7); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle=flags.wrench?"#37d97f":"#ffd089";
+  ctx.font="9px ui-monospace,monospace"; ctx.textAlign="center";
+  ctx.fillText(flags.wrench?"READY":"BROKEN",x,y+18); ctx.textAlign="left";
+}
+function drawReyes(cx,cy){
+  if(!reyes.freed && !near(player,reyes,TILE*7)) { /* still draw if visible */ }
+  const x=reyes.x-cx, y=reyes.y-cy;
+  drawHuman(x,y,"#ff8bd0","#ffd089",1);
+  if(!reyes.freed){
+    ctx.fillStyle="#ff8bd0"; ctx.font="9px ui-monospace,monospace"; ctx.textAlign="center";
+    ctx.fillText("REYES",x,y-20);
+    glowDot(x,y-26,2.5,"#ff8bd0",true); ctx.textAlign="left";
+  }
+}
+function drawDrone(cx,cy){
+  const x=drone.x-cx, y=drone.y-cy, t=performance.now()/200;
+  ctx.save(); ctx.translate(x,y); ctx.rotate(Math.sin(t)*0.15);
+  ctx.shadowBlur=14; ctx.shadowColor="#ff5a3c";
+  ctx.fillStyle="#20140f"; ctx.strokeStyle="#ff5a3c"; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; const r=13;
+    ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r); }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  glowDot(0,0,3.5,"#ff5a3c",true);
+  ctx.restore();
+}
+function drawHuman(x,y,suit,head,scale=1){
+  ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+  ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(0,11,9,3.5,0,0,7); ctx.fill();
+  ctx.fillStyle=suit; roundRect(-7,-4,14,16,4); ctx.fill();
+  ctx.fillStyle=head; ctx.beginPath(); ctx.arc(0,-9,6,0,7); ctx.fill();
+  ctx.fillStyle="#2a3550"; roundRect(-4,-11,8,5,2); ctx.fill(); // visor
+  ctx.restore();
+}
+function drawPlayer(cx,cy){
+  const x=player.x-cx, y=player.y-cy;
+  const bob=Math.sin(player.walk)*1.6;
+  ctx.save(); ctx.translate(x,y+bob); ctx.scale(player.dir,1);
+  ctx.fillStyle="rgba(0,0,0,.4)"; ctx.beginPath(); ctx.ellipse(0,12-bob,10,4,0,0,7); ctx.fill();
+  ctx.save(); ctx.shadowBlur=12; ctx.shadowColor="#4fe3ff";
+  ctx.fillStyle="#dfeaf5"; roundRect(-7,-4,14,16,4); ctx.fill();
+  ctx.restore();
+  ctx.fillStyle="#4fe3ff"; ctx.fillRect(-6,0,12,2.5); // suit stripe
+  ctx.fillStyle="#ffd089"; ctx.beginPath(); ctx.arc(0,-9,6,0,7); ctx.fill();
+  ctx.fillStyle="#152036"; roundRect(-4,-11,8,5,2); ctx.fill();
+  ctx.fillStyle="#9fe8ff"; ctx.fillRect(-3,-10,3,3); // visor glint
+  ctx.restore();
+}
+function roundRect(x,y,w,h,r){ ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// ---------- minimap ----------
+let mapOpen=true;
+function toggleMap(){ mapOpen=!mapOpen; mini.classList.toggle('hidden',!mapOpen); }
+function drawMini(){
+  if(!mapOpen) return;
+  const s=3, ox=6, oy=18;
+  mctx.clearRect(0,0,mini.width,mini.height);
+  mctx.fillStyle="rgba(6,10,16,0)"; mctx.fillRect(0,0,mini.width,mini.height);
+  for(let y=0;y<MAPH;y++)for(let x=0;x<MAPW;x++){
+    if(!discovered[y][x]) continue;
+    const t=grid[y][x];
+    mctx.fillStyle = t===W?"#1b2740" : t===FIRE?"#5a2016" : t===L?"#3a2a12" : "#122033";
+    mctx.fillRect(ox+x*s*0.55, oy+y*s*0.72, 2, 2);
+  }
+  // objective marker
+  const goal=objectiveTarget();
+  if(goal && discovered[Math.floor(goal.y/TILE)]?.[Math.floor(goal.x/TILE)]){
+    const gx=ox+(goal.x/TILE)*s*0.55, gy=oy+(goal.y/TILE)*s*0.72;
+    mctx.fillStyle="#ffb03a"; mctx.beginPath(); mctx.arc(gx+1,gy+1,2.4,0,7); mctx.fill();
+  }
+  // player
+  const pgx=ox+(player.x/TILE)*s*0.55, pgy=oy+(player.y/TILE)*s*0.72;
+  mctx.fillStyle="#4fe3ff"; mctx.beginPath(); mctx.arc(pgx+1,pgy+1,2.6,0,7); mctx.fill();
+}
+
+// ---------- objectives / HUD ----------
+function objectiveText(){
+  if(!flags.key && !flags.unlocked) return "Find the Hangar keycard — Storage, lower-left deck";
+  if(!flags.wrench) return "Pry the repair wrench from the burning Reactor";
+  if(!reyes.freed) return "Reach the pod — or find Reyes in Med Bay first";
+  return "Get Reyes to the escape pod in the Hangar";
+}
+function objectiveTarget(){
+  if(!flags.key && !flags.unlocked) return items.find(i=>i.id==="key");
+  if(!flags.wrench) return items.find(i=>i.id==="wr");
+  return pod;
+}
+function updateHUD(){
+  document.getElementById('o2fill').style.transform=`scaleX(${oxygen/100})`;
+  const pct=Math.max(0,Math.round(oxygen));
+  const el=document.getElementById('o2pct'); el.textContent=pct;
+  el.style.color = oxygen<25?"#ff5a3c":oxygen<50?"#ffb03a":"#37d97f";
+  document.getElementById('objTxt').textContent=objectiveText();
+  document.getElementById('chipKey').hidden=!flags.key;
+  document.getElementById('chipWr').hidden=!flags.wrench;
+  document.getElementById('chipRq').hidden=!flags.reyes;
+}
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastTxt').textContent=msg;
+  t.classList.add('show'); clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.remove('show'),2600);
+}
+
+// ---------- audio ----------
+let ac=null, sound=true;
+function beep(freq,dur=.1,delay=0){
+  if(!sound) return;
+  try{ ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(),g=ac.createGain(),tt=ac.currentTime+delay;
+    o.type="square"; o.frequency.value=freq;
+    g.gain.setValueAtTime(.0001,tt); g.gain.exponentialRampToValueAtTime(.09,tt+.01);
+    g.gain.exponentialRampToValueAtTime(.0001,tt+dur);
+    o.connect(g); g.connect(ac.destination); o.start(tt); o.stop(tt+dur+.02);
+  }catch(e){}
+}
+document.getElementById('sound').onclick=()=>{ sound=!sound;
+  document.getElementById('sound').textContent=`♪ Sound: ${sound?'On':'Off'}`; if(sound) beep(500,.08); };
+
+// ---------- state ----------
+function setScreen(id){ ['titleScreen','endScreen'].forEach(s=>
+  document.getElementById(s).classList.toggle('hidden', s!==id)); }
+function startGame(){
+  reset(); state='play'; resize();
+  document.getElementById('titleScreen').classList.add('hidden');
+  document.getElementById('endScreen').classList.add('hidden');
+  document.getElementById('hud').classList.remove('hidden');
+  document.getElementById('sound').classList.remove('hidden');
+  mini.classList.toggle('hidden',!mapOpen);
+  updateHUD(); beep(440,.09); beep(660,.09,.08);
+}
+function endGame(id){
+  state='over';
+  document.getElementById('hud').classList.add('hidden');
+  document.getElementById('endScreen').classList.remove('hidden');
+}
+function win(){
+  const withReyes=reyes.freed;
+  const s=Math.round((performance.now()-t0)/1000);
+  document.getElementById('endEyebrow').textContent=withReyes?"Both survived":"You survived";
+  document.getElementById('endEyebrow').className="eyebrow "+(withReyes?"ok":"warn");
+  document.getElementById('endTitle').textContent=withReyes?"HOME, TOGETHER":"CLEAR OF THE WRECK";
+  document.getElementById('endSub').innerHTML= withReyes
+    ? `The pod tears free of the Aurora with <b>Reyes</b> strapped in beside you. The station fades to a cold ember behind you. <span class="gd">You left no one behind.</span>`
+    : `The pod punches into open space. You made it — but Reyes' bunk was empty, and you didn't go back. The <span class="hz">silence</span> follows you home.`;
+  document.getElementById('endFoot').innerHTML=`Escaped with <span>${Math.round(oxygen)}%</span> oxygen · ${s}s`;
+  document.getElementById('againBtn').textContent="Play again";
+  beep(523,.12); beep(659,.12,.1); beep(784,.16,.2);
+  endGame();
+}
+function lose(){
+  document.getElementById('endEyebrow').textContent="Signal lost";
+  document.getElementById('endEyebrow').className="eyebrow";
+  document.getElementById('endTitle').textContent="OUT OF AIR";
+  document.getElementById('endSub').innerHTML=`Your vision narrows to a pinhole in the dark of the Aurora. The last of your oxygen hisses away. <span class="hz">The station keeps its dead.</span>`;
+  document.getElementById('endFoot').textContent="Tip: grab oxygen canisters early, and don't linger in the reactor fire.";
+  document.getElementById('againBtn').textContent="Try again";
+  beep(200,.2); beep(120,.3,.15);
+  endGame();
+}
+
+document.getElementById('startBtn').onclick=startGame;
+document.getElementById('againBtn').onclick=startGame;
+
+// ---------- main loop ----------
+function frame(now){
+  const dt=Math.min(.033,(now-(lastTime||now))/1000); lastTime=now;
+  if(state==='play'){ update(dt); render(); }
+  requestAnimationFrame(frame);
+}
+resize(); buildLevel(); state='title';
+requestAnimationFrame(frame);
+})();
+</script>
